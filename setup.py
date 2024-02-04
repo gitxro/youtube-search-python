@@ -5,9 +5,9 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="youtube-search-python",
-    version="1.6.6",
+    version="1.6.7",
     author="Hitesh Kumar Saini",
-    license='MIT',
+    license="MIT",
     author_email="saini123hitesh@gmail.com",
     description="Search for YouTube videos, channels & playlists & get video information using link WITHOUT YouTube Data API v3",
     long_description=long_description,
@@ -17,12 +17,12 @@ setuptools.setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=[
-        'httpx>=0.14.2'
+        "httpx>=0.14.2",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires=">=3.6",
 )

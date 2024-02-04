@@ -1,7 +1,8 @@
 # vscode
 
 .vscode
-
+venv
+.envrc
 # python
 
 __pycache__

@@ -2,11 +2,12 @@ import collections
 import copy
 import itertools
 import json
-from typing import Iterable, Mapping, Tuple, TypeVar, Union, List
+import typing
+from typing import Iterable, List, Mapping, Tuple, TypeVar, Union
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from youtubesearchpython.core.componenthandler import getVideoId, getValue
+from youtubesearchpython.core.componenthandler import getValue, getVideoId
 from youtubesearchpython.core.constants import *
 from youtubesearchpython.core.requests import RequestCore
 
@@ -20,32 +21,45 @@ class CommentsCore(RequestCore):
     isNextRequest = False
     response = None
 
-    def __init__(self, videoLink: str):
-        super().__init__()
+    def __init__(
+        self,
+        videoLink: str,
+        proxy: typing.Union[typing.Dict, str] = None,
+    ):
+        super().__init__(proxy)
         self.commentsComponent = {"result": []}
         self.responseSource = None
         self.videoLink = videoLink
 
     def prepare_continuation_request(self):
         self.data = {
-            "context": {"client": {"clientName": "WEB", "clientVersion": "2.20210820.01.00"}},
-            "videoId": getVideoId(self.videoLink)
+            "context": {
+                "client": {"clientName": "WEB", "clientVersion": "2.20210820.01.00"}
+            },
+            "videoId": getVideoId(self.videoLink),
         }
         self.url = f"https://www.youtube.com/youtubei/v1/next?key={searchKey}"
 
     def prepare_comments_request(self):
         self.data = {
-            "context": {"client": {"clientName": "WEB", "clientVersion": "2.20210820.01.00"}},
-            "continuation": self.continuationKey
+            "context": {
+                "client": {"clientName": "WEB", "clientVersion": "2.20210820.01.00"}
+            },
+            "continuation": self.continuationKey,
         }
 
     def parse_source(self):
-        self.responseSource = getValue(self.response.json(), [
-            "onResponseReceivedEndpoints",
-            0 if self.isNextRequest else 1,
-            "appendContinuationItemsAction" if self.isNextRequest else "reloadContinuationItemsCommand",
-            "continuationItems",
-        ])
+        self.responseSource = getValue(
+            self.response.json(),
+            [
+                "onResponseReceivedEndpoints",
+                0 if self.isNextRequest else 1,
+                "appendContinuationItemsAction"
+                if self.isNextRequest
+                else "reloadContinuationItemsCommand",
+                "continuationItems",
+            ],
+        )
 
     def parse_continuation_source(self):
         self.continuationKey = getValue(
@@ -64,7 +78,7 @@ class CommentsCore(RequestCore):
                 "continuationEndpoint",
                 "continuationCommand",
                 "token",
-            ]
+            ],
         )
 
     def sync_make_comment_request(self):
@@ -122,33 +136,64 @@ class CommentsCore(RequestCore):
     def __getComponents(self) -> None:
         comments = []
         for comment in self.responseSource:
-            comment = getValue(comment, ["commentThreadRenderer", "comment", "commentRenderer"])
-            #print(json.dumps(comment, indent=4))
+            comment = getValue(
+                comment, ["commentThreadRenderer", "comment", "commentRenderer"]
+            )
+            # print(json.dumps(comment, indent=4))
             try:
                 j = {
                     "id": self.__getValue(comment, ["commentId"]),
                     "author": {
-                        "id": self.__getValue(comment, ["authorEndpoint", "browseEndpoint", "browseId"]),
+                        "id": self.__getValue(
+                            comment, ["authorEndpoint", "browseEndpoint", "browseId"]
+                        ),
                         "name": self.__getValue(comment, ["authorText", "simpleText"]),
-                        "thumbnails": self.__getValue(comment, ["authorThumbnail", "thumbnails"])
+                        "thumbnails": self.__getValue(
+                            comment, ["authorThumbnail", "thumbnails"]
+                        ),
                     },
-                    "content": self.__getValue(comment, ["contentText", "runs", 0, "text"]),
-                    "published": self.__getValue(comment, ["publishedTimeText", "runs", 0, "text"]),
+                    "content": self.__getValue(
+                        comment, ["contentText", "runs", 0, "text"]
+                    ),
+                    "published": self.__getValue(
+                        comment, ["publishedTimeText", "runs", 0, "text"]
+                    ),
                     "isLiked": self.__getValue(comment, ["isLiked"]),
-                    "authorIsChannelOwner": self.__getValue(comment, ["authorIsChannelOwner"]),
+                    "authorIsChannelOwner": self.__getValue(
+                        comment, ["authorIsChannelOwner"]
+                    ),
                     "voteStatus": self.__getValue(comment, ["voteStatus"]),
                     "votes": {
-                        "simpleText": self.__getValue(comment, ["voteCount", "simpleText"]),
-                        "label": self.__getValue(comment, ["voteCount", "accessibility", "accessibilityData", "label"])
+                        "simpleText": self.__getValue(
+                            comment, ["voteCount", "simpleText"]
+                        ),
+                        "label": self.__getValue(
+                            comment,
+                            [
+                                "voteCount",
+                                "accessibility",
+                                "accessibilityData",
+                                "label",
+                            ],
+                        ),
                     },
                     "replyCount": self.__getValue(comment, ["replyCount"]),
                 }
                 comments.append(j)
-            except:
+            except Exception:
                 pass
 
         self.commentsComponent["result"].extend(comments)
-        self.continuationKey = self.__getValue(self.responseSource, [-1, "continuationItemRenderer", "continuationEndpoint", "continuationCommand", "token"])
+        self.continuationKey = self.__getValue(
+            self.responseSource,
+            [
+                -1,
+                "continuationItemRenderer",
+                "continuationEndpoint",
+                "continuationCommand",
+                "token",
+            ],
+        )
 
     def __result(self, mode: int) -> Union[dict, str]:
         if mode == ResultMode.dict:
@@ -156,16 +201,19 @@ class CommentsCore(RequestCore):
         elif mode == ResultMode.json:
             return json.dumps(self.commentsComponent, indent=4)
 
-    def __getValue(self, source: dict, path: Iterable[str]) -> Union[str, int, dict, None]:
+    def __getValue(
+        self, source: dict, path: Iterable[str]
+    ) -> Union[str, int, dict, None]:
         value = source
         for key in path:
-            if type(key) is str:
+            # if type(key) is str:
+            if isinstance(key, str):
                 if key in value.keys():
                     value = value[key]
                 else:
                     value = None
                     break
-            elif type(key) is int:
+            elif isinstance(key, int):
                 if len(value) != 0:
                     value = value[key]
                 else:
@@ -178,7 +226,9 @@ class CommentsCore(RequestCore):
             if key in item:
                 yield item[key]
 
-    def __getValueEx(self, source: dict, path: List[str]) -> Iterable[Union[str, int, dict, None]]:
+    def __getValueEx(
+        self, source: dict, path: List[str]
+    ) -> Iterable[Union[str, int, dict, None]]:
         if len(path) <= 0:
             yield source
             return
@@ -188,7 +238,9 @@ class CommentsCore(RequestCore):
             following_key = upcoming[0]
             upcoming = upcoming[1:]
             if following_key is None:
-                raise Exception("Cannot search for a key twice consecutive or at the end with no key given")
+                raise Exception(
+                    "Cannot search for a key twice consecutive or at the end with no key given"
+                )
             values = self.__getAllWithKey(source, following_key)
             for val in values:
                 yield from self.__getValueEx(val, path=upcoming)
@@ -196,7 +248,9 @@ class CommentsCore(RequestCore):
             val = self.__getValue(source, path=[key])
             yield from self.__getValueEx(val, path=upcoming)
 
-    def __getFirstValue(self, source: dict, path: Iterable[str]) -> Union[str, int, dict, None]:
+    def __getFirstValue(
+        self, source: dict, path: Iterable[str]
+    ) -> Union[str, int, dict, None]:
         values = self.__getValueEx(source, list(path))
         for val in values:
             if val is not None:
